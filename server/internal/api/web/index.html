@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>家庭照片备份</title>
+  <style>
+    :root{font-family:system-ui,"Microsoft YaHei",sans-serif;color:#18202a;background:#f3f5f7;color-scheme:light}
+    *{box-sizing:border-box}body{margin:0}main{max-width:900px;margin:32px auto;padding:0 20px 40px}
+    h1{font-size:28px;margin:0 0 6px;letter-spacing:0}h2{font-size:18px;margin:0 0 14px;letter-spacing:0}
+    .muted{color:#66717f}.card{background:#fff;border:1px solid #e2e7ec;border-radius:8px;padding:22px;margin:16px 0;box-shadow:0 3px 14px #15202b0a}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.metric{background:#f6f8fa;border-radius:6px;padding:14px}
+    .metric b{display:block;font-size:20px;margin-top:5px}.field{display:flex;gap:10px;align-items:stretch}.field input{flex:1;min-width:0}
+    label{display:block;font-weight:650;margin-bottom:8px}input{border:1px solid #aeb8c4;border-radius:6px;padding:10px 12px;font:inherit;font-family:Consolas,"Microsoft YaHei",monospace}
+    input:focus{outline:3px solid #1769e026;border-color:#1769e0}button{border:0;border-radius:6px;padding:10px 15px;background:#1769e0;color:#fff;font:inherit;font-weight:650;cursor:pointer;white-space:nowrap}
+    button:hover{background:#0f58c2}button:disabled{cursor:not-allowed;opacity:.55}button.danger{background:#b42318;padding:7px 10px}
+    .notice{border-left:3px solid #d39a24;background:#fff9e9;padding:10px 12px;margin-top:14px;color:#624b16}.message{min-height:20px;margin:10px 0 0}.message.error{color:#b42318}.message.success{color:#18794e}
+    #qr{display:none;max-width:320px;width:100%;margin:18px auto}.device{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;border-top:1px solid #e6e9ed}
+    code{word-break:break-all}@media(max-width:560px){main{margin-top:22px;padding-inline:14px}.card{padding:17px}.field{flex-direction:column}.field button{width:100%}}
+  </style>
+</head>
+<body><main>
+  <h1>家庭照片备份</h1>
+  <p class="muted" id="subtitle">正在读取服务状态…</p>
+
+  <section class="card">
+    <h2>状态</h2>
+    <div class="grid">
+      <div class="metric">已备份文件<b id="assets">—</b></div>
+      <div class="metric">已保存容量<b id="bytes">—</b></div>
+      <div class="metric">可用空间<b id="free">—</b></div>
+      <div class="metric">正在上传<b id="active">—</b></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>存储设置</h2>
+    <form id="storage-form">
+      <label for="storage-root">照片根目录</label>
+      <div class="field">
+        <input id="storage-root" name="storageRoot" type="text" placeholder="D:\PhotoBackup" autocomplete="off" spellcheck="false" required>
+        <button id="save-storage" type="submit">保存目录</button>
+      </div>
+    </form>
+    <p id="storage-message" class="message muted" aria-live="polite"></p>
+    <div class="notice">新目录只用于之后的上传，旧照片不会自动移动。上传进行中不能修改目录。</div>
+  </section>
+
+  <section class="card">
+    <h2>配对新手机</h2>
+    <p class="muted">二维码五分钟内有效，成功使用一次后立即失效。</p>
+    <button id="pair" type="button">生成配对二维码</button>
+    <img id="qr" alt="配对二维码">
+    <p id="expiry" class="muted"></p>
+  </section>
+
+  <section class="card">
+    <h2>已配对设备</h2>
+    <div id="devices" class="muted">暂无设备</div>
+  </section>
+</main><script>
+const element=id=>document.getElementById(id);
+const subtitle=element('subtitle'),assets=element('assets'),bytes=element('bytes'),free=element('free'),active=element('active');
+const storageForm=element('storage-form'),storageRoot=element('storage-root'),saveStorage=element('save-storage'),storageMessage=element('storage-message');
+const pair=element('pair'),qr=element('qr'),expiry=element('expiry'),devices=element('devices');
+let storageDirty=false,activeUploads=0;
+
+const size=value=>{if(!value)return '0 B';const units=['B','KB','MB','GB','TB'];let index=0;while(value>=1024&&index<units.length-1){value/=1024;index++}return value.toFixed(index>1?1:0)+' '+units[index]};
+async function json(url,options){const response=await fetch(url,options);if(response.status===204)return null;let body;try{body=await response.json()}catch{body=null}if(!response.ok)throw new Error(body?.error||response.statusText);return body}
+function showStorageMessage(message,type='muted'){storageMessage.textContent=message;storageMessage.className='message '+type}
+
+function renderDevices(value){
+  const list=Array.isArray(value)?value:[];
+  devices.replaceChildren();
+  devices.className=list.length?'':'muted';
+  if(!list.length){devices.textContent='暂无设备';return}
+  for(const device of list){
+    const row=document.createElement('div');row.className='device';
+    const detail=document.createElement('span');
+    const name=document.createElement('b');name.textContent=device.name;
+    const meta=document.createElement('small');meta.textContent=(device.revoked?'已撤销':'已授权')+' · '+new Date(device.createdAt).toLocaleString();
+    detail.append(name,document.createElement('br'),meta);row.append(detail);
+    if(!device.revoked){const revoke=document.createElement('button');revoke.type='button';revoke.className='danger';revoke.textContent='撤销';revoke.onclick=async()=>{if(confirm('撤销后该手机必须重新配对，确定吗？')){await json('/admin/devices/'+device.id+'/revoke',{method:'POST'});await refresh()}};row.append(revoke)}
+    devices.append(row);
+  }
+}
+
+async function refresh(){
+  const status=await json('/admin/status');
+  subtitle.textContent=status.serverName+' · API '+status.apiPort;
+  assets.textContent=status.stats.assetCount;bytes.textContent=size(status.stats.totalBytes);free.textContent=size(status.freeBytes);active.textContent=status.stats.activeUploads;
+  activeUploads=status.stats.activeUploads;
+  if(!storageDirty)storageRoot.value=status.storageRoot;
+  saveStorage.disabled=activeUploads>0;
+  if(activeUploads>0&&!storageDirty)showStorageMessage('有 '+activeUploads+' 个上传任务，完成后可以修改目录。');
+  const deviceList=await json('/admin/devices');renderDevices(deviceList);
+}
+
+storageRoot.addEventListener('input',()=>{storageDirty=true;showStorageMessage('')});
+storageForm.addEventListener('submit',async event=>{
+  event.preventDefault();
+  saveStorage.disabled=true;showStorageMessage('正在验证并保存目录…');
+  try{
+    const result=await json('/admin/storage',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({storageRoot:storageRoot.value})});
+    storageDirty=false;storageRoot.value=result.storageRoot;showStorageMessage('目录已保存。之后的新上传将写入这里。','success');await refresh();
+  }catch(error){showStorageMessage('保存失败：'+error.message,'error')}
+  finally{saveStorage.disabled=activeUploads>0}
+});
+
+pair.onclick=async()=>{try{pair.disabled=true;const payload=await json('/admin/pairing',{method:'POST'});qr.src=payload.qrDataUrl;qr.style.display='block';expiry.textContent='有效期至 '+new Date(payload.payload.expiresAt).toLocaleTimeString()}catch(error){subtitle.textContent='生成二维码失败：'+error.message}finally{pair.disabled=false}};
+refresh().catch(error=>subtitle.textContent='读取失败：'+error.message);
+setInterval(()=>refresh().catch(()=>{}),10000);
+</script></body></html>

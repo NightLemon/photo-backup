@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">家庭照片备份</string>
+    <string name="sync_channel">照片备份进度</string>
+    <string name="cleanup_channel">可清理照片</string>
+</resources>
+

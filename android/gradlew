@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+set -eu
+VERSION=8.9
+SHA256=d725d707bfabd4dfdc958c624003b3c80accc03f7037b5122c4b1d0ef15cecab
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+BOOTSTRAP="$ROOT/.gradle-bootstrap"
+ARCHIVE="$BOOTSTRAP/gradle-$VERSION-bin.zip"
+GRADLE_HOME="$BOOTSTRAP/gradle-$VERSION"
+if [ ! -x "$GRADLE_HOME/bin/gradle" ]; then
+  mkdir -p "$BOOTSTRAP"
+  [ -f "$ARCHIVE" ] || curl -L --fail -o "$ARCHIVE" "https://services.gradle.org/distributions/gradle-$VERSION-bin.zip"
+  echo "$SHA256  $ARCHIVE" | sha256sum -c -
+  unzip -q -o "$ARCHIVE" -d "$BOOTSTRAP"
+fi
+exec "$GRADLE_HOME/bin/gradle" "$@"
+

@@ -1,0 +1,72 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Install Android SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;34.0.0' 'build-tools;35.0.0'
+      - name: Test, lint, and build
+        run: gradle --project-dir android testDebugUnitTest lintDebug assembleDebug --no-daemon
+      - name: Prepare APK
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/HomePhotoBackup-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: home-photo-backup-android
+          path: dist/HomePhotoBackup-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  server:
+    name: Windows server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - name: Test server
+        working-directory: server
+        run: go test ./...
+      - name: Build Windows server
+        working-directory: server
+        env:
+          CGO_ENABLED: '0'
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          mkdir -p ../dist/server
+          go build -trimpath -o ../dist/server/photobackup-server.exe ./cmd/photobackup
+      - name: Prepare standalone package
+        run: |
+          cp server/start-standalone.cmd dist/server/
+          mkdir -p dist/server/scripts
+          cp server/scripts/start-standalone.ps1 server/scripts/allow-standalone-firewall.ps1 dist/server/scripts/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: home-photo-backup-windows
+          path: dist/server
+          if-no-files-found: error
+          retention-days: 14
