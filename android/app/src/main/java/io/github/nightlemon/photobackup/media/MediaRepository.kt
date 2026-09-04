@@ -8,7 +8,6 @@ import android.os.Build
 import android.provider.MediaStore
 import io.github.nightlemon.photobackup.data.BackupRecord
 import io.github.nightlemon.photobackup.data.LocalMedia
-import java.security.MessageDigest
 
 class MediaRepository(context: Context) {
     private val resolver: ContentResolver = context.contentResolver
@@ -94,23 +93,6 @@ class MediaRepository(context: Context) {
             MediaStore.Images.Media.getContentUri(volume)
         }
         return ContentUris.withAppendedId(collection, ContentUris.parseId(source))
-    }
-
-    fun matchesBackupContent(record: BackupRecord): Boolean {
-        if (!isUnchanged(record)) return false
-        val hash = runCatching {
-            resolver.openInputStream(Uri.parse(record.contentUri))?.use { stream ->
-                val digest = MessageDigest.getInstance("SHA-256")
-                val buffer = ByteArray(1024 * 1024)
-                while (true) {
-                    val count = stream.read(buffer)
-                    if (count < 0) break
-                    digest.update(buffer, 0, count)
-                }
-                digest.digest().joinToString("") { byte -> "%02x".format(byte) }
-            }
-        }.getOrNull()
-        return hash?.equals(record.sha256, ignoreCase = true) == true
     }
 
     private fun currentMetadata(contentUri: String): Pair<Long, Long>? = runCatching {

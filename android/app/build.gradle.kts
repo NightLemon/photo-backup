@@ -17,8 +17,8 @@ android {
             .getOrElse("io.github.nightlemon.photobackup")
         minSdk = 29
         targetSdk = 35
-        versionCode = providers.gradleProperty("versionCodeOverride").getOrElse("1").toInt()
-        versionName = providers.gradleProperty("versionNameOverride").getOrElse("1.0.0")
+        versionCode = providers.gradleProperty("versionCodeOverride").getOrElse("2").toInt()
+        versionName = providers.gradleProperty("versionNameOverride").getOrElse("1.0.1")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -73,4 +73,6 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
 }

@@ -25,7 +25,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -50,10 +49,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _settings = MutableStateFlow(settingsStore.read())
     val settings: StateFlow<BackupSettings> = _settings.asStateFlow()
     private val _cleanupClock = MutableStateFlow(System.currentTimeMillis())
-    private val _checkingDeletion = MutableStateFlow(false)
-    val checkingDeletion: StateFlow<Boolean> = _checkingDeletion.asStateFlow()
-    private val _cleanupNotice = MutableStateFlow("")
-    val cleanupNotice: StateFlow<String> = _cleanupNotice.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -115,33 +110,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _cleanupClock.value = System.currentTimeMillis()
     }
 
-    fun prepareDeletion(records: List<BackupRecord>, onReady: (List<BackupRecord>) -> Unit) {
-        if (records.isEmpty() || _checkingDeletion.value) return
-        viewModelScope.launch {
-            _checkingDeletion.value = true
-            _cleanupNotice.value = "正在复核所选文件"
-            val credential = _credential.value
-            val settings = _settings.value
-            val now = System.currentTimeMillis()
-            val safe = withContext(Dispatchers.IO) {
-                buildList {
-                    records.forEachIndexed { index, record ->
-                        _cleanupNotice.value = "正在复核 ${index + 1}/${records.size}"
-                        if (credential != null && record.serverId == credential.serverId &&
-                            record.isOutsideCleanupRetention(settings, now) && media.matchesBackupContent(record)
-                        ) {
-                            add(record)
-                        }
-                    }
-                }
-            }
-            val omitted = records.size - safe.size
-            _cleanupNotice.value = if (omitted > 0) "已排除 $omitted 个发生变化或仍在保留期内的文件" else "复核通过"
-            _checkingDeletion.value = false
-            if (safe.isNotEmpty()) onReady(safe)
-        }
-    }
-
     fun forgetServer() {
         credentials.clear()
         _credential.value = null
@@ -171,5 +139,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
 }
 

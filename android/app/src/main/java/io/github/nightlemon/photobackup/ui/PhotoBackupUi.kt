@@ -317,8 +317,6 @@ private fun CleanupScreen(modifier: Modifier, viewModel: AppViewModel, onDelete:
     val candidates by viewModel.cleanup.collectAsState()
     val selected by viewModel.selected.collectAsState()
     val settings by viewModel.settings.collectAsState()
-    val checkingDeletion by viewModel.checkingDeletion.collectAsState()
-    val cleanupNotice by viewModel.cleanupNotice.collectAsState()
     val selectedRecords = candidates.filter { it.mediaKey in selected }
     val selectedBytes = selectedRecords.sumOf { it.byteLength }
     LaunchedEffect(Unit) {
@@ -340,21 +338,16 @@ private fun CleanupScreen(modifier: Modifier, viewModel: AppViewModel, onDelete:
                 color = MaterialTheme.colorScheme.primary,
             )
             if (candidates.isNotEmpty()) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { viewModel.selectAll(selected.size != candidates.size) }) {
-                    Text(if (selected.size == candidates.size) "取消全选" else "全选")
+                TextButton(onClick = { viewModel.selectAll(selected.isEmpty()) }) {
+                    Text(if (selected.isNotEmpty()) "取消全选" else "全选")
                 }
                 Button(
-                    onClick = { viewModel.prepareDeletion(selectedRecords, onDelete) },
-                    enabled = selectedRecords.isNotEmpty() && !checkingDeletion,
+                    onClick = { onDelete(selectedRecords) },
+                    enabled = selectedRecords.isNotEmpty(),
                 ) {
-                    Text(if (checkingDeletion) "正在复核…" else "删除 ${selectedRecords.size} 项 · ${formatSize(selectedBytes)}")
+                    Text("删除 ${selectedRecords.size} 项 · ${formatSize(selectedBytes)}")
                 }
             }
-            if (cleanupNotice.isNotEmpty()) Text(
-                cleanupNotice,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             Text("清理依据本机保存的完成凭据，不会在删除前重新联系服务器。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
         LazyColumn(Modifier.weight(1f)) {
