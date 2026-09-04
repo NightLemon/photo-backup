@@ -18,7 +18,7 @@
 
 从 [Actions](https://github.com/NightLemon/photo-backup/actions/workflows/build.yml) 下载最新构建产物：
 
-- `home-photo-backup-android`：Android APK
+- `home-photo-backup-android`：可覆盖升级的签名 Android APK
 - `home-photo-backup-windows`：Windows standalone 服务端
 
 解压 Windows 包后，首次以管理员身份运行 `scripts/allow-standalone-firewall.ps1`，之后运行 `start-standalone.cmd`。管理页会在 <http://127.0.0.1:5444> 打开，可在页面中设置照片目录并生成配对二维码。

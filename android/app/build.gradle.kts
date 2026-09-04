@@ -6,6 +6,8 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val releaseKeystorePath = providers.environmentVariable("ANDROID_KEYSTORE_PATH")
+
 android {
     namespace = "io.github.nightlemon.photobackup"
     compileSdk = 35
@@ -27,6 +29,27 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+
+    signingConfigs {
+        if (releaseKeystorePath.isPresent) {
+            create("release") {
+                storeFile = file(releaseKeystorePath.get())
+                storePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD").get()
+                storeType = "PKCS12"
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = false
+            if (releaseKeystorePath.isPresent) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
 }
 
 dependencies {
